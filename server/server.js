@@ -16,8 +16,11 @@ let gameLoopInterval;
 
 const server = http.createServer((req, res) => {
   if (req.method === 'GET') {
-    if (req.url === '/') {
-      serveFile(res, path.join(__dirname, '../client/public/index.html'), 'text/html');
+    if (req.url === '/' || !req.url.includes('.')) {
+      serveFile(res, path.join(__dirname, '../public/index.html'), 'text/html');
+    } else if (req.url.startsWith('/dist/')) {
+      const filePath = path.join(__dirname, '..', req.url);
+      serveFile(res, filePath, getContentType(req.url));
     } else if (req.url.endsWith('.js')) {
       serveFile(res, path.join(__dirname, '..', req.url), 'application/javascript');
     } else if (req.url.endsWith('.css')) {
@@ -34,6 +37,16 @@ const server = http.createServer((req, res) => {
     res.end('Method not allowed');
   }
 });
+
+function getContentType(url) {
+  if (url.endsWith('.js')) return 'application/javascript';
+  if (url.endsWith('.css')) return 'text/css';
+  if (url.endsWith('.json')) return 'application/json';
+  if (url.endsWith('.png')) return 'image/png';
+  if (url.endsWith('.jpg')) return 'image/jpeg';
+  if (url.endsWith('.svg')) return 'image/svg+xml';
+  return 'text/plain';
+}
 
 function serveFile(res, filePath, contentType) {
   fs.readFile(filePath, (err, data) => {
