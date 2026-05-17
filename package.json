@@ -5,9 +5,9 @@
   "type": "module",
   "main": "server/server.js",
   "scripts": {
-    "start": "npm ci && node server/server.js",
-    "dev": "npm ci && node --watch server/server.js",
-    "build": "cd client && npm install && npm run build"
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js",
+    "build": "npm install && cd client && npm install && npm run build"
   },
   "dependencies": {
     "ws": "^8.13.0",
