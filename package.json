@@ -5,8 +5,8 @@
   "type": "module",
   "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "node --watch server/server.js",
+    "start": "npm ci && node server/server.js",
+    "dev": "npm ci && node --watch server/server.js",
     "build": "cd client && npm install && npm run build"
   },
   "dependencies": {
