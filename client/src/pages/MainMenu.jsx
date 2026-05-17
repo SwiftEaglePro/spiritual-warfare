@@ -33,7 +33,7 @@ export default function MainMenu({ onJoinGame }) {
   return (
     <div className="mainmenu">
       <div className="mainmenu-content">
-        <h1 className="game-title">Battle Arena</h1>
+        <h1 className="game-title">Spiritual Warfare</h1>
         <p className="subtitle">Multiplayer Sword Combat</p>
 
         <div className="menu-form">

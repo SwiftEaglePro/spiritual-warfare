@@ -1,7 +1,7 @@
 {
-  "name": "battle-arena",
+  "name": "spiritual-warfare",
   "version": "1.0.0",
-  "description": "Multiplayer sword combat battle arena game",
+  "description": "Multiplayer sword combat game - Spiritual Warfare",
   "type": "module",
   "main": "server/server.js",
   "scripts": {

@@ -1,6 +1,6 @@
-# Battle Arena
+# Spiritual Warfare
 
-A multiplayer sword combat battle arena game. Fight other players in a fantasy setting, earn coins, buy legendary equipment, and compete on teams or solo.
+A multiplayer sword combat game. Fight other players in a fantasy setting with biblical-themed equipment, earn coins, and compete on teams or solo.
 
 ## Features
 

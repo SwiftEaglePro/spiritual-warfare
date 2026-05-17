@@ -190,7 +190,7 @@ const GAME_CONFIG = { worldTickInterval: 50 };
 gameLoopInterval = setInterval(gameLoop, GAME_CONFIG.worldTickInterval);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Battle Arena server running on port ${PORT}`);
+  console.log(`Spiritual Warfare server running on port ${PORT}`);
   console.log(`Open http://localhost:${PORT} in your browser`);
 });
 
