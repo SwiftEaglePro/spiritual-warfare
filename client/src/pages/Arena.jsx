@@ -1,12 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
+import Shop from '../components/Shop';
 import '../styles/arena.css';
 
 export default function Arena({ socket, gameState, chatMessages, playerId, onReturnToMenu }) {
   const canvasRef = useRef(null);
-  const [playerPositions, setPlayerPositions] = useState({});
   const [localPlayer, setLocalPlayer] = useState(null);
   const [chat, setChat] = useState('');
+  const [kills, setKills] = useState(0);
+  const [deaths, setDeaths] = useState(0);
+  const [showShop, setShowShop] = useState(false);
   const keysPressed = useRef({});
+  const canvasScaleRef = useRef({ scaleX: 1, scaleY: 1 });
+  const attackFeedbackRef = useRef({});
 
   const OBSTACLES = [
     { x: 800, y: 400, width: 200, height: 50 },
@@ -23,14 +28,12 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
 
   useEffect(() => {
     if (gameState?.players) {
-      const positions = {};
-      gameState.players.forEach(p => {
-        positions[p.id] = p.position;
-      });
-      setPlayerPositions(positions);
-
       const player = gameState.players.find(p => p.id === playerId);
       setLocalPlayer(player);
+      if (player) {
+        setKills(player.kills);
+        setDeaths(player.deaths);
+      }
     }
   }, [gameState, playerId]);
 
@@ -48,6 +51,57 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, []);
+
+  const getCanvasScale = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { scaleX: 1, scaleY: 1 };
+    return {
+      scaleX: 1800 / canvas.clientWidth,
+      scaleY: 1000 / canvas.clientHeight
+    };
+  };
+
+  const handleCanvasClick = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !gameState) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scale = getCanvasScale();
+    const x = (e.clientX - rect.left) * scale.scaleX;
+    const y = (e.clientY - rect.top) * scale.scaleY;
+
+    for (const player of gameState.players) {
+      if (player.id === playerId || !player.isAlive) continue;
+      const dist = Math.hypot(player.position.x - x, player.position.y - y);
+      if (dist < 20) {
+        socket.send({ type: 'player-attack', targetId: player.id });
+        attackFeedbackRef.current[player.id] = Date.now();
+        return;
+      }
+    }
+  };
+
+  const handleCanvasTouch = (e) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas || !gameState) return;
+
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const scale = getCanvasScale();
+    const x = (touch.clientX - rect.left) * scale.scaleX;
+    const y = (touch.clientY - rect.top) * scale.scaleY;
+
+    for (const player of gameState.players) {
+      if (player.id === playerId || !player.isAlive) continue;
+      const dist = Math.hypot(player.position.x - x, player.position.y - y);
+      if (dist < 20) {
+        socket.send({ type: 'player-attack', targetId: player.id });
+        attackFeedbackRef.current[player.id] = Date.now();
+        return;
+      }
+    }
+  };
 
   useEffect(() => {
     const gameLoop = () => {
@@ -67,10 +121,6 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
     const interval = setInterval(gameLoop, 1000 / 60);
     return () => clearInterval(interval);
   }, [gameState, socket]);
-
-  const handleAttack = (targetId) => {
-    socket.send({ type: 'player-attack', targetId });
-  };
 
   const handleSendChat = () => {
     if (chat.trim()) {
@@ -96,9 +146,20 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
     });
 
     gameState.players?.forEach(player => {
-      if (!player.isAlive) return;
-
       const color = player.team === 'red' ? '#ff4444' : player.team === 'blue' ? '#4444ff' : '#ffff44';
+
+      if (!player.isAlive) {
+        ctx.fillStyle = 'rgba(100, 100, 100, 0.5)';
+        ctx.beginPath();
+        ctx.arc(player.position.x, player.position.y, 15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#999';
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('DEAD', player.position.x, player.position.y);
+        return;
+      }
+
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(player.position.x, player.position.y, 15, 0, Math.PI * 2);
@@ -108,6 +169,17 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
         ctx.strokeStyle = '#00ff00';
         ctx.lineWidth = 3;
         ctx.stroke();
+      }
+
+      const now = Date.now();
+      if (attackFeedbackRef.current[player.id] && now - attackFeedbackRef.current[player.id] < 200) {
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(player.position.x, player.position.y, 20, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        delete attackFeedbackRef.current[player.id];
       }
 
       ctx.fillStyle = color;
@@ -131,12 +203,16 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
           ref={canvasRef}
           width={1800}
           height={1000}
+          onClick={handleCanvasClick}
+          onTouchEnd={handleCanvasTouch}
           style={{
             width: '100%',
             height: 'auto',
             backgroundColor: '#16213e',
             border: '2px solid #00ff00',
-            display: 'block'
+            display: 'block',
+            cursor: 'crosshair',
+            touchAction: 'none'
           }}
         />
       </div>
@@ -157,6 +233,7 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
                   left: `${x}%`,
                   top: `${y}%`,
                   backgroundColor: color,
+                  opacity: player.isAlive ? 1 : 0.5,
                   border: player.id === playerId ? '2px solid lime' : 'none'
                 }}
               />
@@ -181,10 +258,10 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
                 <span>Coins: {localPlayer.coins}</span>
               </div>
               <div className="stat-row">
-                <span>Kills: {localPlayer.kills}</span>
+                <span>K/D: {localPlayer.kills}/{localPlayer.deaths}</span>
               </div>
               <div className="stat-row">
-                <span>Deaths: {localPlayer.deaths}</span>
+                <span>Status: {localPlayer.isAlive ? '🟢 ALIVE' : '🔴 DEAD'}</span>
               </div>
             </>
           )}
@@ -192,7 +269,7 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
 
         <div className="chat-box">
           <div className="chat-messages">
-            {chatMessages.map((msg, i) => (
+            {chatMessages.slice(-8).map((msg, i) => (
               <div key={i} className="chat-message">
                 <strong>{msg.playerName}:</strong> {msg.message}
               </div>
@@ -209,9 +286,24 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
             <button onClick={handleSendChat}>Send</button>
           </div>
         </div>
+
+        <div className="controls-hint">
+          <div>WASD / Arrows: Move</div>
+          <div>Click: Attack</div>
+        </div>
       </div>
 
       <button className="menu-button" onClick={onReturnToMenu}>← Menu</button>
+      <button className="shop-button" onClick={() => setShowShop(true)}>⚔️ SHOP</button>
+
+      {showShop && (
+        <Shop
+          socket={socket}
+          playerCoins={localPlayer?.coins || 0}
+          equipment={localPlayer?.equipment}
+          onClose={() => setShowShop(false)}
+        />
+      )}
     </div>
   );
 }

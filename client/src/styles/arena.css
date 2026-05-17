@@ -198,6 +198,44 @@
   transform: scale(1.05);
 }
 
+.shop-button {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 20px;
+  background: #4444ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  z-index: 2001;
+}
+
+.shop-button:hover {
+  background: #6666ff;
+  transform: translateX(-50%) scale(1.05);
+}
+
+.controls-hint {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 2px solid #00ff00;
+  border-radius: 4px;
+  padding: 10px 15px;
+  color: #00ff00;
+  font-size: 0.85rem;
+  z-index: 2001;
+}
+
+.controls-hint div {
+  margin: 3px 0;
+}
+
 @media (max-width: 768px) {
   .player-stats {
     font-size: 0.9rem;
