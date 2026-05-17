@@ -1,0 +1,19 @@
+{
+  "name": "battle-arena",
+  "version": "1.0.0",
+  "description": "Multiplayer sword combat battle arena game",
+  "type": "module",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "node --watch server/server.js"
+  },
+  "dependencies": {
+    "ws": "^8.13.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": "18.x"
+  }
+}

@@ -1,0 +1,94 @@
+.lobby {
+  width: 100%;
+  height: 100%;
+  background: #1a1a2e;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lobby-header {
+  text-align: center;
+  padding: 20px;
+  background: rgba(0, 255, 0, 0.1);
+  border-bottom: 2px solid #00ff00;
+}
+
+.lobby-header h1 {
+  color: #00ff00;
+  font-size: 2rem;
+  margin-bottom: 10px;
+  text-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+.lobby-header p {
+  color: #aaa;
+  font-size: 1rem;
+}
+
+.lobby-content {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.lobby-content canvas {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border: 2px solid #00ff00;
+}
+
+.lobby-info {
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  border-top: 2px solid #00ff00;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.team-status {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.selected-team {
+  color: #00ff00;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+.no-team {
+  color: #ff4444;
+  text-transform: uppercase;
+}
+
+.start-button {
+  padding: 12px 30px;
+  background: linear-gradient(135deg, #00ff00 0%, #00cc00 100%);
+  color: #000;
+  border: none;
+  font-size: 1.1rem;
+  font-weight: 900;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.start-button:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+}
+
+.start-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #666 0%, #555 100%);
+}
