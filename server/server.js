@@ -94,15 +94,20 @@ function handleMessage(clientId, ws, message, setPlayerId) {
   switch (message.type) {
     case 'join-lobby': {
       const playerId = uuidv4();
-      gameState.addPlayer(playerId, message.username || 'Player');
+      const player = gameState.addPlayer(playerId, message.username || 'Player');
       setPlayerId(playerId);
       ws.playerId = playerId;
       ws.send(JSON.stringify({ type: 'player-id', playerId }));
+      console.log(`player joined: ${playerId} username=${message.username} spawn=${JSON.stringify(player.position)}`);
       broadcastGameState();
       break;
     }
 
     case 'player-move': {
+      if (!ws.playerId) {
+        console.warn('player-move received before playerId assigned for client', clientId);
+        break;
+      }
       const player = gameState.getPlayer(ws.playerId);
       if (player) {
         player.moveDirection = message.direction;
