@@ -1,49 +1,28 @@
 import React, { useEffect, useRef, useState } from 'react';
+import * as THREE from 'three';
 import Shop from '../components/Shop';
 import '../styles/arena.css';
 
 export default function Arena({ socket, gameState, chatMessages, playerId, onReturnToMenu }) {
-  const canvasRef = useRef(null);
+  const mountRef = useRef(null);
   const [localPlayer, setLocalPlayer] = useState(null);
   const [chat, setChat] = useState('');
-  const [kills, setKills] = useState(0);
-  const [deaths, setDeaths] = useState(0);
   const [showShop, setShowShop] = useState(false);
   const keysPressed = useRef({});
-  const canvasScaleRef = useRef({ scaleX: 1, scaleY: 1 });
-  const attackFeedbackRef = useRef({});
-
-  const OBSTACLES = [
-    { x: 800, y: 400, width: 200, height: 50 },
-    { x: 800, y: 550, width: 200, height: 50 },
-    { x: 50, y: 50, width: 150, height: 150 },
-    { x: 1600, y: 50, width: 150, height: 150 },
-    { x: 50, y: 800, width: 150, height: 150 },
-    { x: 1600, y: 800, width: 150, height: 150 },
-    { x: 400, y: 300, width: 100, height: 300 },
-    { x: 1300, y: 400, width: 100, height: 300 },
-    { x: 600, y: 700, width: 300, height: 100 },
-    { x: 900, y: 200, width: 100, height: 150 }
-  ];
+  const playersRef = useRef(new Map());
+  const obstaclesRef = useRef([]);
+  const raycaster = useRef(new THREE.Raycaster());
 
   useEffect(() => {
     if (gameState?.players) {
       const player = gameState.players.find(p => p.id === playerId);
       setLocalPlayer(player);
-      if (player) {
-        setKills(player.kills);
-        setDeaths(player.deaths);
-      }
     }
   }, [gameState, playerId]);
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      keysPressed.current[e.key.toLowerCase()] = true;
-    };
-    const handleKeyUp = (e) => {
-      keysPressed.current[e.key.toLowerCase()] = false;
-    };
+    const handleKeyDown = (e) => { keysPressed.current[e.key.toLowerCase()] = true; };
+    const handleKeyUp = (e) => { keysPressed.current[e.key.toLowerCase()] = false; };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     return () => {
@@ -52,59 +31,166 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
     };
   }, []);
 
-  const getCanvasScale = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { scaleX: 1, scaleY: 1 };
-    return {
-      scaleX: 1800 / canvas.clientWidth,
-      scaleY: 1000 / canvas.clientHeight
-    };
-  };
-
-  const handleCanvasClick = (e) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !gameState) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const scale = getCanvasScale();
-    const x = (e.clientX - rect.left) * scale.scaleX;
-    const y = (e.clientY - rect.top) * scale.scaleY;
-
-    for (const player of gameState.players) {
-      if (player.id === playerId || !player.isAlive) continue;
-      const dist = Math.hypot(player.position.x - x, player.position.y - y);
-      if (dist < 20) {
-        socket.send({ type: 'player-attack', targetId: player.id });
-        attackFeedbackRef.current[player.id] = Date.now();
-        return;
-      }
-    }
-  };
-
-  const handleCanvasTouch = (e) => {
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas || !gameState) return;
-
-    const touch = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    const scale = getCanvasScale();
-    const x = (touch.clientX - rect.left) * scale.scaleX;
-    const y = (touch.clientY - rect.top) * scale.scaleY;
-
-    for (const player of gameState.players) {
-      if (player.id === playerId || !player.isAlive) continue;
-      const dist = Math.hypot(player.position.x - x, player.position.y - y);
-      if (dist < 20) {
-        socket.send({ type: 'player-attack', targetId: player.id });
-        attackFeedbackRef.current[player.id] = Date.now();
-        return;
-      }
-    }
-  };
-
   useEffect(() => {
-    const gameLoop = () => {
+    const mount = mountRef.current;
+    if (!mount) return;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x16213e);
+
+    const camera = new THREE.PerspectiveCamera(60, mount.clientWidth / mount.clientHeight, 1, 5000);
+    camera.position.set(900, 600, 1200);
+    camera.lookAt(900, 500, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(mount.clientWidth, mount.clientHeight);
+    mount.appendChild(renderer.domElement);
+
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(0.5, 1, 0.5);
+    scene.add(light);
+
+    // Ground
+    const groundGeo = new THREE.PlaneGeometry(1800, 1000);
+    const groundMat = new THREE.MeshStandardMaterial({ color: 0x21304a });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(900, 0, 500);
+    scene.add(ground);
+
+    // Keep simple obstacle boxes
+    const OBSTACLES = [
+      { x: 800, y: 400, width: 200, height: 50 },
+      { x: 800, y: 550, width: 200, height: 50 },
+      { x: 50, y: 50, width: 150, height: 150 },
+      { x: 1600, y: 50, width: 150, height: 150 },
+      { x: 50, y: 800, width: 150, height: 150 },
+      { x: 1600, y: 800, width: 150, height: 150 },
+      { x: 400, y: 300, width: 100, height: 300 },
+      { x: 1300, y: 400, width: 100, height: 300 },
+      { x: 600, y: 700, width: 300, height: 100 },
+      { x: 900, y: 200, width: 100, height: 150 }
+    ];
+
+    OBSTACLES.forEach(obs => {
+      const geo = new THREE.BoxGeometry(obs.width, 60, obs.height);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+      const box = new THREE.Mesh(geo, mat);
+      // convert 2D y (0..1000) to z coordinate in 3D
+      box.position.set(obs.x + obs.width / 2, 30, obs.y + obs.height / 2);
+      scene.add(box);
+      obstaclesRef.current.push(box);
+    });
+
+    const playerGroup = new THREE.Group();
+    scene.add(playerGroup);
+
+    // Helper: create or update a player mesh
+    const createPlayerMesh = (p) => {
+      const color = p.team === 'red' ? 0xff4444 : p.team === 'blue' ? 0x4444ff : 0xffff44;
+      const geo = new THREE.SphereGeometry(15, 16, 16);
+      const mat = new THREE.MeshStandardMaterial({ color });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(p.position.x, 15, p.position.y);
+
+      // Name label using canvas texture
+      const canvas = document.createElement('canvas');
+      canvas.width = 256; canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(255,255,255,0.0)'; ctx.fillRect(0,0,256,64);
+      ctx.fillStyle = '#ffffff'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
+      ctx.fillText(p.username, 128, 34);
+      const tex = new THREE.CanvasTexture(canvas);
+      const labelMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+      const sprite = new THREE.Sprite(labelMat);
+      sprite.scale.set(150, 40, 1);
+      sprite.position.set(p.position.x, 45, p.position.y);
+
+      const group = new THREE.Group();
+      group.add(mesh);
+      group.add(sprite);
+      group.userData = { id: p.id };
+      playerGroup.add(group);
+      playersRef.current.set(p.id, group);
+    };
+
+    // Initial populate
+    (gameState?.players || []).forEach(p => createPlayerMesh(p));
+
+    // Raycast and handle clicks
+    const onClick = (ev) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((ev.clientX - rect.left) / rect.width) * 2 - 1,
+        -((ev.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      raycaster.current.setFromCamera(mouse, camera);
+      const intersects = raycaster.current.intersectObjects(playerGroup.children, true);
+      if (intersects.length > 0) {
+        // find parent group with id
+        let obj = intersects[0].object;
+        while (obj && !obj.userData?.id) obj = obj.parent;
+        if (obj && obj.userData && obj.userData.id && obj.userData.id !== playerId) {
+          socket.send({ type: 'player-attack', targetId: obj.userData.id });
+        }
+      }
+    };
+
+    renderer.domElement.addEventListener('click', onClick);
+
+    let frameId;
+    const animate = () => {
+      // sync players
+      (gameState?.players || []).forEach(p => {
+        const g = playersRef.current.get(p.id);
+        if (g) {
+          g.position.x += (p.position.x - g.position.x) * 0.4;
+          g.position.z += (p.position.y - g.position.z) * 0.4;
+          // update label position and color
+          const sprite = g.children[1];
+          if (sprite) sprite.position.set(p.position.x, 45, p.position.y);
+          const mat = g.children[0].material;
+          mat.color.set(p.team === 'red' ? 0xff4444 : p.team === 'blue' ? 0x4444ff : 0xffff44);
+          g.visible = p.isAlive;
+        } else {
+          createPlayerMesh(p);
+        }
+      });
+
+      // remove players that left
+      playersRef.current.forEach((group, id) => {
+        if (!(gameState?.players || []).find(p => p.id === id)) {
+          playerGroup.remove(group);
+          playersRef.current.delete(id);
+        }
+      });
+
+      renderer.render(scene, camera);
+      frameId = requestAnimationFrame(animate);
+    };
+    animate();
+
+    // Resize handling
+    const onResize = () => {
+      const w = mount.clientWidth; const h = mount.clientHeight;
+      camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h);
+    };
+    window.addEventListener('resize', onResize);
+
+    // Cleanup
+    return () => {
+      cancelAnimationFrame(frameId);
+      renderer.domElement.removeEventListener('click', onClick);
+      window.removeEventListener('resize', onResize);
+      mount.removeChild(renderer.domElement);
+      playersRef.current.clear();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mountRef, gameState]);
+
+  // movement tick
+  useEffect(() => {
+    const tick = () => {
       socket.send({
         type: 'player-move',
         direction: {
@@ -114,13 +200,10 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
           right: keysPressed.current['d'] || keysPressed.current['arrowright']
         }
       });
-
-      draw();
     };
-
-    const interval = setInterval(gameLoop, 1000 / 60);
-    return () => clearInterval(interval);
-  }, [gameState, socket]);
+    const id = setInterval(tick, 1000 / 60);
+    return () => clearInterval(id);
+  }, [socket]);
 
   const handleSendChat = () => {
     if (chat.trim()) {
@@ -129,113 +212,23 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
     }
   };
 
-  const draw = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !gameState) return;
-    const ctx = canvas.getContext('2d');
-
-    ctx.fillStyle = '#16213e';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    OBSTACLES.forEach(obs => {
-      ctx.fillStyle = '#444';
-      ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-      ctx.strokeStyle = '#666';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-    });
-
-    gameState.players?.forEach(player => {
-      const color = player.team === 'red' ? '#ff4444' : player.team === 'blue' ? '#4444ff' : '#ffff44';
-
-      if (!player.isAlive) {
-        ctx.fillStyle = 'rgba(100, 100, 100, 0.5)';
-        ctx.beginPath();
-        ctx.arc(player.position.x, player.position.y, 15, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#999';
-        ctx.font = 'bold 10px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('DEAD', player.position.x, player.position.y);
-        return;
-      }
-
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(player.position.x, player.position.y, 15, 0, Math.PI * 2);
-      ctx.fill();
-
-      if (player.id === playerId) {
-        ctx.strokeStyle = '#00ff00';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-      }
-
-      const now = Date.now();
-      if (attackFeedbackRef.current[player.id] && now - attackFeedbackRef.current[player.id] < 200) {
-        ctx.strokeStyle = '#ff0000';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(player.position.x, player.position.y, 20, 0, Math.PI * 2);
-        ctx.stroke();
-      } else {
-        delete attackFeedbackRef.current[player.id];
-      }
-
-      ctx.fillStyle = color;
-      ctx.font = 'bold 12px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(player.username, player.position.x, player.position.y - 30);
-
-      const healthBarWidth = 30;
-      const healthPercent = player.health / player.maxHealth;
-      ctx.fillStyle = '#333';
-      ctx.fillRect(player.position.x - healthBarWidth / 2, player.position.y - 40, healthBarWidth, 4);
-      ctx.fillStyle = healthPercent > 0.3 ? '#00ff00' : '#ff0000';
-      ctx.fillRect(player.position.x - healthBarWidth / 2, player.position.y - 40, healthBarWidth * healthPercent, 4);
-    });
-  };
-
   return (
     <div className="arena-container">
-      <div className="arena-wrapper">
-        <canvas
-          ref={canvasRef}
-          width={1800}
-          height={1000}
-          onClick={handleCanvasClick}
-          onTouchEnd={handleCanvasTouch}
-          style={{
-            width: '100%',
-            height: 'auto',
-            backgroundColor: '#16213e',
-            border: '2px solid #00ff00',
-            display: 'block',
-            cursor: 'crosshair',
-            touchAction: 'none'
-          }}
-        />
-      </div>
+      <div className="arena-wrapper" ref={mountRef} style={{ width: '100%', height: '700px', position: 'relative' }} />
 
       <div className="hud">
         <div className="radar">
           <div className="radar-title">RADAR</div>
-          {gameState?.players?.map(player => {
+          {(gameState?.players || []).map(player => {
             const scale = 100 / 1800;
-            const x = player.position.x * scale;
-            const y = player.position.y * scale;
+            const x = (player.position.x * scale).toFixed(2);
+            const y = (player.position.y * scale).toFixed(2);
             const color = player.team === 'red' ? 'red' : player.team === 'blue' ? 'blue' : 'yellow';
             return (
               <div
                 key={player.id}
                 className="radar-dot"
-                style={{
-                  left: `${x}%`,
-                  top: `${y}%`,
-                  backgroundColor: color,
-                  opacity: player.isAlive ? 1 : 0.5,
-                  border: player.id === playerId ? '2px solid lime' : 'none'
-                }}
+                style={{ left: `${x}%`, top: `${y}%`, backgroundColor: color, opacity: player.isAlive ? 1 : 0.5 }}
               />
             );
           })}
@@ -245,24 +238,12 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
           {localPlayer && (
             <>
               <h3>{localPlayer.username}</h3>
-              <div className="stat-row">
-                <span>Health:</span>
-                <div className="health-bar">
-                  <div
-                    className="health-fill"
-                    style={{ width: `${(localPlayer.health / localPlayer.maxHealth) * 100}%` }}
-                  />
-                </div>
+              <div className="stat-row"><span>Health:</span>
+                <div className="health-bar"><div className="health-fill" style={{ width: `${(localPlayer.health / localPlayer.maxHealth) * 100}%` }} /></div>
               </div>
-              <div className="stat-row">
-                <span>Coins: {localPlayer.coins}</span>
-              </div>
-              <div className="stat-row">
-                <span>K/D: {localPlayer.kills}/{localPlayer.deaths}</span>
-              </div>
-              <div className="stat-row">
-                <span>Status: {localPlayer.isAlive ? '🟢 ALIVE' : '🔴 DEAD'}</span>
-              </div>
+              <div className="stat-row"><span>Coins: {localPlayer.coins}</span></div>
+              <div className="stat-row"><span>K/D: {localPlayer.kills}/{localPlayer.deaths}</span></div>
+              <div className="stat-row"><span>Status: {localPlayer.isAlive ? '🟢 ALIVE' : '🔴 DEAD'}</span></div>
             </>
           )}
         </div>
@@ -270,39 +251,23 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
         <div className="chat-box">
           <div className="chat-messages">
             {chatMessages.slice(-8).map((msg, i) => (
-              <div key={i} className="chat-message">
-                <strong>{msg.playerName}:</strong> {msg.message}
-              </div>
+              <div key={i} className="chat-message"><strong>{msg.playerName}:</strong> {msg.message}</div>
             ))}
           </div>
           <div className="chat-input">
-            <input
-              type="text"
-              value={chat}
-              onChange={(e) => setChat(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendChat()}
-              placeholder="Type message..."
-            />
+            <input type="text" value={chat} onChange={(e) => setChat(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendChat()} placeholder="Type message..." />
             <button onClick={handleSendChat}>Send</button>
           </div>
         </div>
 
-        <div className="controls-hint">
-          <div>WASD / Arrows: Move</div>
-          <div>Click: Attack</div>
-        </div>
+        <div className="controls-hint"><div>WASD / Arrows: Move</div><div>Click: Attack</div></div>
       </div>
 
       <button className="menu-button" onClick={onReturnToMenu}>← Menu</button>
       <button className="shop-button" onClick={() => setShowShop(true)}>⚔️ SHOP</button>
 
       {showShop && (
-        <Shop
-          socket={socket}
-          playerCoins={localPlayer?.coins || 0}
-          equipment={localPlayer?.equipment}
-          onClose={() => setShowShop(false)}
-        />
+        <Shop socket={socket} playerCoins={localPlayer?.coins || 0} equipment={localPlayer?.equipment} onClose={() => setShowShop(false)} />
       )}
     </div>
   );
