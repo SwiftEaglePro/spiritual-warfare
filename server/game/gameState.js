@@ -14,8 +14,41 @@ export class GameState {
   }
 
   addPlayer(id, username) {
-    const spawnPoint = WORLD.spawnPoints[this.players.size % WORLD.spawnPoints.length];
-    const player = new Player(id, username, spawnPoint);
+    // Choose a spawn point that is not colliding with obstacles. Try random spawn points first.
+    const spawnPoints = [...WORLD.spawnPoints];
+
+    while (spawnPoints.length > 0) {
+      const idx = Math.floor(Math.random() * spawnPoints.length);
+      const sp = spawnPoints.splice(idx, 1)[0];
+      const temp = new Player(id, username, sp);
+      if (!temp.checkCollision(sp.x, sp.y, WORLD.obstacles)) {
+        const player = new Player(id, username, sp);
+        this.players.set(id, player);
+        this.allPlayers.push(player);
+        return player;
+      }
+    }
+
+    // If all predefined spawn points collide, try random offsets around the first spawn
+    const fallback = WORLD.spawnPoints[0];
+    let attempts = 0;
+    while (attempts < 50) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 50 + Math.random() * 200;
+      const x = Math.max(15, Math.min(WORLD.width - 15, Math.round(fallback.x + Math.cos(angle) * radius)));
+      const y = Math.max(15, Math.min(WORLD.height - 15, Math.round(fallback.y + Math.sin(angle) * radius)));
+      const temp = new Player(id, username, { x, y });
+      if (!temp.checkCollision(x, y, WORLD.obstacles)) {
+        const player = new Player(id, username, { x, y });
+        this.players.set(id, player);
+        this.allPlayers.push(player);
+        return player;
+      }
+      attempts++;
+    }
+
+    // Last resort: use fallback spawn even if it collides
+    const player = new Player(id, username, fallback);
     this.players.set(id, player);
     this.allPlayers.push(player);
     return player;
