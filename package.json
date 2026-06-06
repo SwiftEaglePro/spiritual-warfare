@@ -5,7 +5,7 @@
   "type": "module",
   "main": "server/server.js",
   "scripts": {
-    "start": "node server/server.js",
+    "start": "npm install && cd client && npm install && npm run build && cd .. && node server/server.js",
     "dev": "node --watch server/server.js",
     "build": "npm install && cd client && npm install && npm run build"
   },

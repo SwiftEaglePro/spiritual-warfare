@@ -17,14 +17,14 @@ let gameLoopInterval;
 const server = http.createServer((req, res) => {
   if (req.method === 'GET') {
     if (req.url === '/' || !req.url.includes('.')) {
-      serveFile(res, path.join(__dirname, '../public/index.html'), 'text/html');
-    } else if (req.url.startsWith('/dist/')) {
-      const filePath = path.join(__dirname, '..', req.url);
+      serveFile(res, path.join(__dirname, '../client/dist/index.html'), 'text/html');
+    } else if (req.url.startsWith('/assets/')) {
+      const filePath = path.join(__dirname, '../client/dist', req.url);
       serveFile(res, filePath, getContentType(req.url));
     } else if (req.url.endsWith('.js')) {
-      serveFile(res, path.join(__dirname, '..', req.url), 'application/javascript');
+      serveFile(res, path.join(__dirname, '../client/dist', req.url), 'application/javascript');
     } else if (req.url.endsWith('.css')) {
-      serveFile(res, path.join(__dirname, '..', req.url), 'text/css');
+      serveFile(res, path.join(__dirname, '../client/dist', req.url), 'text/css');
     } else if (req.url === '/api/shop') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(EQUIPMENT));
