@@ -1,93 +1,128 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import '../styles/lobby.css';
 
-export default function Lobby({ socket, gameState, onStartGame, username }) {
+export default function Lobby({ socket, gameState, onStart }) {
   const mountRef = useRef(null);
-  const avatarRef = useRef({ x: 300, y: 300 });
-  const keysPressed = useRef({});
+  const keysRef = useRef({});
+  const avatarRef = useRef({ x: 900, y: 500 });
   const [selectedTeam, setSelectedTeam] = useState(null);
 
-  const TEAM_ZONES = [
-    { x: 50, y: 50, width: 300, height: 300, team: 'red', color: 0xff4444, label: 'RED TEAM' },
-    { x: 1450, y: 50, width: 300, height: 300, team: 'blue', color: 0x4444ff, label: 'BLUE TEAM' },
-    { x: 700, y: 650, width: 400, height: 300, team: 'free-for-all', color: 0xffff44, label: 'FREE-FOR-ALL' }
+  const TEAMS = [
+    { name: 'red', label: 'RED TEAM', zone: { x: 100, y: 100, w: 300, h: 300 }, color: 0xff3333 },
+    { name: 'blue', label: 'BLUE TEAM', zone: { x: 1400, y: 100, w: 300, h: 300 }, color: 0x3333ff },
+    { name: 'free-for-all', label: 'FREE-FOR-ALL', zone: { x: 750, y: 650, w: 300, h: 250 }, color: 0xffff33 }
   ];
 
   useEffect(() => {
-    const handleKeyDown = (e) => { keysPressed.current[e.key.toLowerCase()] = true; };
-    const handleKeyUp = (e) => { keysPressed.current[e.key.toLowerCase()] = false; };
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp); };
+    const down = (e) => { keysRef.current[e.key.toLowerCase()] = true; };
+    const up = (e) => { keysRef.current[e.key.toLowerCase()] = false; };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, []);
+
+  useEffect(() => {
+    const tick = () => {
+      socket.send({
+        type: 'player-move',
+        direction: {
+          up: keysRef.current['w'] || keysRef.current['arrowup'],
+          down: keysRef.current['s'] || keysRef.current['arrowdown'],
+          left: keysRef.current['a'] || keysRef.current['arrowleft'],
+          right: keysRef.current['d'] || keysRef.current['arrowright']
+        }
+      });
+    };
+    const id = setInterval(tick, 1000 / 30);
+    return () => clearInterval(id);
+  }, [socket]);
 
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x16213e);
+    scene.background = new THREE.Color(0x0a0a2e);
 
     const camera = new THREE.PerspectiveCamera(60, mount.clientWidth / mount.clientHeight, 1, 5000);
-    camera.position.set(900, 600, 1200);
-    camera.lookAt(900, 500, 0);
+    camera.position.set(900, 500, 1000);
+    camera.lookAt(900, 0, 500);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     mount.appendChild(renderer.domElement);
 
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(0.5, 1, 0.5);
+    const light = new THREE.DirectionalLight(0xffffff, 0.8);
+    light.position.set(1, 1, 1);
     scene.add(light);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
     // Ground
-    const groundGeo = new THREE.PlaneGeometry(1800, 1000);
-    const groundMat = new THREE.MeshStandardMaterial({ color: 0x21304a });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
+    const geoGround = new THREE.PlaneGeometry(1800, 1000);
+    const matGround = new THREE.MeshStandardMaterial({ color: 0x1a1a3a });
+    const ground = new THREE.Mesh(geoGround, matGround);
     ground.rotation.x = -Math.PI / 2;
-    ground.position.set(900, 0, 500);
+    ground.position.y = 0;
     scene.add(ground);
 
-    // Zones
-    const zoneGroup = new THREE.Group();
-    TEAM_ZONES.forEach(zone => {
-      const geo = new THREE.BoxGeometry(zone.width, 10, zone.height);
-      const mat = new THREE.MeshStandardMaterial({ color: zone.color, transparent: true, opacity: 0.35 });
+    // Team zones
+    TEAMS.forEach(t => {
+      const geo = new THREE.BoxGeometry(t.zone.w, 5, t.zone.h);
+      const mat = new THREE.MeshStandardMaterial({ color: t.color, transparent: true, opacity: 0.3 });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(zone.x + zone.width / 2, 5, zone.y + zone.height / 2);
-      zoneGroup.add(mesh);
+      mesh.position.set(t.zone.x + t.zone.w / 2, 2.5, t.zone.y + t.zone.h / 2);
+      scene.add(mesh);
     });
-    scene.add(zoneGroup);
 
     // Avatar
-    const avatarGeo = new THREE.SphereGeometry(15, 16, 16);
-    const avatarMat = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-    const avatar = new THREE.Mesh(avatarGeo, avatarMat);
-    avatar.position.set(avatarRef.current.x, 15, avatarRef.current.y);
+    const geoAvatar = new THREE.SphereGeometry(12, 16, 16);
+    const matAvatar = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+    const avatar = new THREE.Mesh(geoAvatar, matAvatar);
+    avatar.position.set(900, 12, 500);
     scene.add(avatar);
 
+    // Other players
+    const otherPlayersGroup = new THREE.Group();
+    scene.add(otherPlayersGroup);
+
     const animate = () => {
-      // movement
-      const moveSpeed = 5;
-      let { x, y } = avatarRef.current;
-      if (keysPressed.current['w'] || keysPressed.current['arrowup']) y -= moveSpeed;
-      if (keysPressed.current['s'] || keysPressed.current['arrowdown']) y += moveSpeed;
-      if (keysPressed.current['a'] || keysPressed.current['arrowleft']) x -= moveSpeed;
-      if (keysPressed.current['d'] || keysPressed.current['arrowright']) x += moveSpeed;
+      // Client-side avatar movement
+      const speed = 5;
+      let x = avatarRef.current.x;
+      let y = avatarRef.current.y;
+      if (keysRef.current['w'] || keysRef.current['arrowup']) y -= speed;
+      if (keysRef.current['s'] || keysRef.current['arrowdown']) y += speed;
+      if (keysRef.current['a'] || keysRef.current['arrowleft']) x -= speed;
+      if (keysRef.current['d'] || keysRef.current['arrowright']) x += speed;
       x = Math.max(15, Math.min(1800 - 15, x));
       y = Math.max(15, Math.min(1000 - 15, y));
-      avatarRef.current.x = x; avatarRef.current.y = y;
+      avatarRef.current.x = x;
+      avatarRef.current.y = y;
 
-      // update avatar position
-      avatar.position.x += (x - avatar.position.x) * 0.4;
-      avatar.position.z += (y - avatar.position.z) * 0.4;
+      // Smooth avatar move
+      avatar.position.x += (x - avatar.position.x) * 0.15;
+      avatar.position.z += (y - avatar.position.z) * 0.15;
 
-      // detect zone
-      const foundZone = TEAM_ZONES.find(zone => x > zone.x && x < zone.x + zone.width && y > zone.y && y < zone.y + zone.height);
-      if (foundZone && foundZone.team !== selectedTeam) {
-        setSelectedTeam(foundZone.team);
-        socket.send({ type: 'assign-team', team: foundZone.team });
+      // Check zone
+      const inZone = TEAMS.find(t => x > t.zone.x && x < t.zone.x + t.zone.w && y > t.zone.y && y < t.zone.y + t.zone.h);
+      if (inZone && inZone.name !== selectedTeam) {
+        setSelectedTeam(inZone.name);
+        socket.send({ type: 'assign-team', team: inZone.name });
+      }
+
+      // Render other players
+      otherPlayersGroup.clear();
+      if (gameState?.players) {
+        gameState.players.forEach(p => {
+          if (p.id !== socket.playerId) {
+            const geo = new THREE.SphereGeometry(12, 16, 16);
+            const mat = new THREE.MeshStandardMaterial({ color: p.color || 0xffff00 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(p.position.x, 12, p.position.y);
+            otherPlayersGroup.add(mesh);
+          }
+        });
       }
 
       renderer.render(scene, camera);
@@ -95,56 +130,38 @@ export default function Lobby({ socket, gameState, onStartGame, username }) {
     };
     animate();
 
-    const onResize = () => { const w = mount.clientWidth; const h = mount.clientHeight; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); };
+    const onResize = () => {
+      camera.aspect = mount.clientWidth / mount.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(mount.clientWidth, mount.clientHeight);
+    };
     window.addEventListener('resize', onResize);
 
     return () => {
       window.removeEventListener('resize', onResize);
       mount.removeChild(renderer.domElement);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mountRef]);
+  }, [mountRef, gameState, socket, socket.playerId]);
 
-  // send movement tick to server
-  useEffect(() => {
-    const tick = () => {
-      socket.send({ type: 'player-move', direction: {
-        up: keysPressed.current['w'] || keysPressed.current['arrowup'],
-        down: keysPressed.current['s'] || keysPressed.current['arrowdown'],
-        left: keysPressed.current['a'] || keysPressed.current['arrowleft'],
-        right: keysPressed.current['d'] || keysPressed.current['arrowright']
-      }});
-    };
-    const id = setInterval(tick, 1000 / 30);
-    return () => clearInterval(id);
-  }, [socket]);
-
-  const counts = {
-    red: (gameState?.players || []).filter(p => p.team === 'red').length,
-    blue: (gameState?.players || []).filter(p => p.team === 'blue').length,
-    'free-for-all': (gameState?.players || []).filter(p => p.team === 'free-for-all').length
-  };
+  const teamCounts = gameState?.players
+    ? { red: gameState.players.filter(p => p.team === 'red').length,
+        blue: gameState.players.filter(p => p.team === 'blue').length,
+        'free-for-all': gameState.players.filter(p => p.team === 'free-for-all').length }
+    : { red: 0, blue: 0, 'free-for-all': 0 };
 
   return (
-    <div className="lobby">
-      <div className="lobby-wrapper" ref={mountRef} style={{ width: '100%', height: '700px', position: 'relative' }} />
-
-      {/* Overlay counts for each zone */}
-      {TEAM_ZONES.map(zone => (
-        <div key={zone.team}
-          style={{
-            position: 'absolute', left: (zone.x / 18) + '%', top: (zone.y / 10) + '%',
-            width: (zone.width / 18) + '%', height: (zone.height / 10) + '%', pointerEvents: 'none'
-          }}>
-          <div style={{ position: 'absolute', right: 6, bottom: 6, background: 'rgba(0,0,0,0.6)', padding: '6px 8px', borderRadius: 6, pointerEvents: 'auto' }}>{counts[zone.team]}</div>
+    <div className="lobby-container">
+      <div className="lobby-render" ref={mountRef} />
+      <div className="lobby-overlay">
+        <div className="team-indicator">
+          {selectedTeam ? <span className="selected">✓ {selectedTeam.toUpperCase()}</span> : <span className="unselected">Select a team</span>}
         </div>
-      ))}
-
-      <div className="lobby-info">
-        <div className="team-status">
-          {selectedTeam ? (<span className="selected-team">Team: {selectedTeam.toUpperCase()}</span>) : (<span className="no-team">No team selected</span>)}
+        <div className="team-counts">
+          {TEAMS.map(t => (
+            <div key={t.name} className="count-badge">{t.label}: {teamCounts[t.name]}</div>
+          ))}
         </div>
-        <button onClick={onStartGame} disabled={!selectedTeam} className="start-button">START GAME</button>
+        <button onClick={onStart} disabled={!selectedTeam} className="start-btn">START GAME</button>
       </div>
     </div>
   );

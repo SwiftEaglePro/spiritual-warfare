@@ -1,95 +1,57 @@
-# Spiritual Warfare
+# Spiritual Warfare - 3D Multiplayer Battle Arena
 
-A multiplayer sword combat game. Fight other players in a fantasy setting with biblical-themed equipment, earn coins, and compete on teams or solo.
+A real-time 3D multiplayer game built with React, Three.js, Node.js, and WebSockets.
 
 ## Features
 
-- **Multiplayer Combat**: Real-time battles with other players
-- **Team System**: Choose from Red Team, Blue Team, or Free-For-All
-- **Equipment Shop**: Buy legendary items (Sword of The Spirit, Helmet of Salvation, Breastplate of Righteousness, Belt of Truth, Shield of Faith, Gospel of Peace)
-- **Skill-Based Gameplay**: Arena with obstacles, collision detection, and tactical positioning
-- **HUD**: Real-time radar, health bars, chat, and score tracking
-- **Cross-Platform**: Works on desktop and mobile browsers
+- 3D isometric arena
+- Team-based multiplayer (Red, Blue, Free-for-All)
+- Real-time movement and combat
+- Equipment shop system
+- Player tracking and statistics
 
-## Getting Started
+## Tech Stack
 
-### Prerequisites
-- Node.js 18+
-- npm
+- **Frontend**: React 18, Three.js, Vite
+- **Backend**: Node.js, WebSocket (ws library)
+- **Build**: Vite for client, standard Node for server
 
-### Development
+## Setup
 
-#### Backend
 ```bash
-cd games/battle-arena
+# Install root dependencies
 npm install
-npm start
-# Server runs on http://localhost:3000
-```
 
-#### Frontend (in a new terminal)
-```bash
-cd games/battle-arena/client
-npm install
-npm start
-# Dev server runs on http://localhost:5173
-```
+# Install client dependencies
+cd client && npm install && cd ..
 
-### Production Build
+# Development mode (starts both server and client)
+npm run dev
 
-#### Backend
-```bash
-cd games/battle-arena
-npm install
-npm start
-```
-
-#### Frontend
-```bash
-cd games/battle-arena/client
+# Production build
 npm run build
-# Output in ../public/dist
+
+# Production server
+npm start
 ```
 
-## Deployment
+## Gameplay
 
-Deploy to Render:
-
-1. Push to GitHub
-2. Connect repository to Render
-3. Set environment variables in Render dashboard
-4. Deploy
-
-## Game Mechanics
-
-### Combat
-- Click/Tap on a player to attack
-- Damage: 25 HP base (modified by equipment)
-- Attack Cooldown: 500ms
-- Attack Range: 40 units
-
-### Economy
-- Earn 10 coins per kill
-- Buy equipment to boost stats
-- Equipment provides damage/defense bonuses
-
-### Teams
-- Select team in lobby by moving into colored zones
-- Team modes earn coins independently
-- Leaderboard tracks team scores
-
-## Controls
-
-- **WASD / Arrow Keys**: Move
-- **Mouse/Touch Click**: Attack nearby player
-- **Enter**: Send chat message
+- **Lobby**: Select your team and see real-time player counts
+- **Arena**: Move with WASD/Arrows, click to attack
+- **Coins**: Earn coins by defeating other players
+- **Respawn**: Die and respawn after 3 seconds
 
 ## Architecture
 
-- **Backend**: Node.js HTTP server with WebSocket for real-time sync
-- **Frontend**: React with Canvas rendering
-- **Game Loop**: 50ms server tick, 60fps client render
+- `server/server.js` - WebSocket server and HTTP static serving
+- `server/gamestate.js` - Game logic and state management
+- `server/player.js` - Player entity with movement and collision
+- `server/config.js` - World configuration and equipment
 
-## License
-
-MIT
+- `client/src/main.jsx` - React entry point
+- `client/src/App.jsx` - Main component router
+- `client/src/pages/Menu.jsx` - Login screen
+- `client/src/pages/Lobby.jsx` - Team selection (3D)
+- `client/src/pages/Arena.jsx` - Gameplay arena (3D)
+- `client/src/hooks/useGameSocket.js` - WebSocket connection hook
