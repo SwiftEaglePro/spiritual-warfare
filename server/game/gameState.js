@@ -13,19 +13,15 @@ export class GameState {
     this.allPlayers = [];
   }
 
-  addPlayer(id, username) {
-    // Choose a spawn point that is not colliding with obstacles. Try random spawn points first.
+  pickSpawnPoint() {
     const spawnPoints = [...WORLD.spawnPoints];
 
     while (spawnPoints.length > 0) {
       const idx = Math.floor(Math.random() * spawnPoints.length);
       const sp = spawnPoints.splice(idx, 1)[0];
-      const temp = new Player(id, username, sp);
+      const temp = new Player('probe', 'probe', sp);
       if (!temp.checkCollision(sp.x, sp.y, WORLD.obstacles)) {
-        const player = new Player(id, username, sp);
-        this.players.set(id, player);
-        this.allPlayers.push(player);
-        return player;
+        return sp;
       }
     }
 
@@ -37,18 +33,20 @@ export class GameState {
       const radius = 50 + Math.random() * 200;
       const x = Math.max(15, Math.min(WORLD.width - 15, Math.round(fallback.x + Math.cos(angle) * radius)));
       const y = Math.max(15, Math.min(WORLD.height - 15, Math.round(fallback.y + Math.sin(angle) * radius)));
-      const temp = new Player(id, username, { x, y });
+      const temp = new Player('probe', 'probe', { x, y });
       if (!temp.checkCollision(x, y, WORLD.obstacles)) {
-        const player = new Player(id, username, { x, y });
-        this.players.set(id, player);
-        this.allPlayers.push(player);
-        return player;
+        return { x, y };
       }
       attempts++;
     }
 
-    // Last resort: use fallback spawn even if it collides
-    const player = new Player(id, username, fallback);
+    // Last resort: return fallback spawn even if it collides
+    return fallback;
+  }
+
+  addPlayer(id, username) {
+    const spawnPoint = this.pickSpawnPoint();
+    const player = new Player(id, username, spawnPoint);
     this.players.set(id, player);
     this.allPlayers.push(player);
     return player;
@@ -90,7 +88,7 @@ export class GameState {
       if (player.isAlive) {
         player.update(deltaTime, WORLD.obstacles);
       } else if (player.respawnTime && Date.now() >= player.respawnTime) {
-        const spawnPoint = WORLD.spawnPoints[Math.floor(Math.random() * WORLD.spawnPoints.length)];
+        const spawnPoint = this.pickSpawnPoint();
         player.respawn(spawnPoint);
       }
     });
