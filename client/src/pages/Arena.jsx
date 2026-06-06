@@ -140,13 +140,13 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
 
     let frameId;
     const animate = () => {
-      // sync players
-      (gameState?.players || []).forEach(p => {
+      // sync players (server-authoritative)
+      const serverPlayers = (gameState?.players || []);
+      serverPlayers.forEach(p => {
         const g = playersRef.current.get(p.id);
         if (g) {
           g.position.x += (p.position.x - g.position.x) * 0.4;
           g.position.z += (p.position.y - g.position.z) * 0.4;
-          // update label position and color
           const sprite = g.children[1];
           if (sprite) sprite.position.set(p.position.x, 45, p.position.y);
           const mat = g.children[0].material;
@@ -157,13 +157,43 @@ export default function Arena({ socket, gameState, chatMessages, playerId, onRet
         }
       });
 
+      // client-side prediction for local player when server updates are delayed
+      const localServerPlayer = serverPlayers.find(p => p.id === playerId);
+      const localGroup = playersRef.current.get(playerId);
+      if (localGroup) {
+        if (!localServerPlayer) {
+          // no server state yet: move based on input
+          const dx = (keysPressed.current['d'] || keysPressed.current['arrowright']) ? 5 : (keysPressed.current['a'] || keysPressed.current['arrowleft']) ? -5 : 0;
+          const dz = (keysPressed.current['s'] || keysPressed.current['arrowdown']) ? 5 : (keysPressed.current['w'] || keysPressed.current['arrowup']) ? -5 : 0;
+          localGroup.position.x += dx * 0.6;
+          localGroup.position.z += dz * 0.6;
+        }
+      }
+
       // remove players that left
       playersRef.current.forEach((group, id) => {
-        if (!(gameState?.players || []).find(p => p.id === id)) {
+        if (!serverPlayers.find(p => p.id === id)) {
           playerGroup.remove(group);
           playersRef.current.delete(id);
         }
       });
+
+      // camera follow local player (smooth)
+      let focusX = 900, focusZ = 500;
+      if (localServerPlayer) {
+        focusX = localServerPlayer.position.x;
+        focusZ = localServerPlayer.position.y;
+      } else if (localGroup) {
+        focusX = localGroup.position.x;
+        focusZ = localGroup.position.z;
+      }
+      const desiredCamX = focusX;
+      const desiredCamZ = focusZ + 600; // offset behind
+      const desiredCamY = 450;
+      camera.position.x += (desiredCamX - camera.position.x) * 0.08;
+      camera.position.z += (desiredCamZ - camera.position.z) * 0.08;
+      camera.position.y += (desiredCamY - camera.position.y) * 0.08;
+      camera.lookAt(focusX, 0, focusZ);
 
       renderer.render(scene, camera);
       frameId = requestAnimationFrame(animate);
